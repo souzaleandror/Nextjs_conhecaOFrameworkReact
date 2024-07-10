@@ -1359,3 +1359,560 @@ Utilizar imagens remotas no componente Image;
 Configurar as props obrigatórias do componente Image;
 Importar fontes do Google;
 Analisar os logs e reagir a avisos de configurações do Next.js que estão depreciadas.
+
+##### 10/07/2024
+
+@03-Obtendo dados da API
+
+@01
+Projeto da aula anterior
+
+Caso queira começar daqui, você pode acessar o projeto da aula anterior, ou, se preferir, fazer o download do arquivo.
+ DISCUTIR NO FÓRUM
+
+ https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/tree/aula-2
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/archive/refs/heads/aula-2.zip
+
+@@02
+Preparando o ambiente
+
+Bora preparar o backend? Vamos utilizar o json-server pra subir uma API mockada, então você pode se apoiar nesse artigo que eu escrevi.
+Para maximizar a compatibilidade com o curso, eu super recomendo você:
+
+fazer downlaod do posts.json
+instalar a mesma versão que eu do json server:
+
+npm i -g json-server@1.0.0-alpha.22
+COPIAR CÓDIGO
+Então, com o terminal aberto na pasta onde você salvou o posts.json, você pode subir a api:
+
+
+json-server posts.json -p 3042
+COPIAR CÓDIGO
+A saída no terminal deve ser alguma coisa parecida com:
+
+
+JSON Server started on PORT :3042
+Press CTRL-C to stop
+Watching posts.json...
+
+(˶ᵔ ᵕ ᵔ˶)
+
+Index:
+http://localhost:3042/
+
+Static files:
+Serving ./public directory if it exists
+
+Endpoints:
+http://localhost:3042/posts
+COPIAR CÓDIGO
+Bora comigo e então fazemos tudo isso juntos?
+
+https://www.alura.com.br/artigos/mockando-apis-rest-com-json-server
+
+https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/posts.json
+
+@@04
+Criando função fetch
+
+Agora que temos o card estilizado e a API rodando, como podemos conectar todas essas peças?
+Atenção: o terminal deve executar tanto o json-server em uma aba, quanto o npm run dev em outra aba, levantando o servidor Next. Ambos devem estar em execução; caso contrário, não conseguiremos fazer essa comunicação acontecer. O endereço "localhost:3000" deve retornar a página de posts, enquanto o "localhost:3042/posts" deve retornar o JSON.
+Uma função para a todos governar
+Com tudo no lugar, vamos implementar uma função que irá obter esses dados. Para isso, vamos abrir o VS Code no code-connect, a parte em que estamos trabalhando no projeto.
+
+Criando a função getAllPosts()
+Uma vez aberto o VS Code, vamos acessar o arquivo page.js.
+
+page.js:
+import { CardPost } from "@/components/CardPost"
+
+const post = {
+  "id": 1,
+  "cover": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/posts/introducao-ao-react.png",
+  "title": "Introdução ao React",
+  "slug": "introducao-ao-react",
+  "body": "Neste post, vamos explorar os conceitos básicos do React, uma biblioteca JavaScript para construir interfaces de usuário. Vamos cobrir componentes, JSX e estados.",
+  "markdown": "```javascript\nfunction HelloComponent() {\n  return <h1>Hello, world!</h1>;\n}\n```",
+  "author": {
+      "id": 101,
+      "name": "Ana Beatriz",
+      "username": "anabeatriz_dev",
+      "avatar": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/authors/anabeatriz_dev.png"
+  }
+}
+
+export default function Home() {
+  return (
+    <main>
+      <CardPost post={post} />
+    </main>
+  )
+}
+COPIAR CÓDIGO
+Essa é a nossa página inicial (homepage), ou seja, é a página que vai obter todos os dados. Para isso, usaremos uma função JavaScript. Vamos declará-la? Na linha 18, após a declaração de const post, indicaremos que é uma função assíncrona (async function) chamada getAllPosts().
+
+Essa função irá pegar todos os posts disponíveis na nossa API. Para isso, usaremos a função fetch(), que espera uma URL, ou seja, uma string ('') com o endpoint que queremos conectar.
+
+Podemos pegar esse endpoint do próprio navegador.
+A função fetch() devolverá uma resposta, então vamos atribuí-la a uma const chamada response, por exemplo. Como assinamos a função com async, podemos usar await antes de fetch().
+
+// código omitido
+
+async function getAllPosts () {
+  const response = await fetch('http://localhost:3042/posts')
+}
+
+// código omitido
+COPIAR CÓDIGO
+Dessa forma, fazemos o fetch() e aguardamos pela resposta.
+
+Criando o tratamento de erro
+Feito isso, podemos esboçar um tratamento de erro. Nesse caso, fazemos uma condicional if para conferir se a resposta está OK e se não é um status 200 (if (!response.ok)). No escopo do bloco if, podemos chamar o método console.log() com a mensagem "Ops, alguma coisa correu mal".
+
+Se tudo der certo, podemos fazer um return de response.json().
+
+async function getAllPosts () {
+  const response = await fetch('http://localhost:3042/posts')
+  if (!response.ok) {
+    console.log('Ops, alguma coisa correu mal')
+  }
+  return response.json()
+}
+COPIAR CÓDIGO
+Isso fará com que a função getAllPosts() encapsule a fonte de dados. Portanto, quem for consumir essa função não se preocupará se isso vem de uma API, de um arquivo TXT, ou de um banco de dados.
+
+Temos a opção de colapsar a função no código, para não nos preocuparmos com qual é a fonte de dados.
+Conectando o componente à função
+Agora precisamos conectar o componente a esta função, isto é, à obtenção de dados. É nesta etapa que o Next começa a brilhar, principalmente da versão 3 em diante.
+
+Vamos obter esses dados do lado do servidor. Não haverá aquele processo que fazemos em aplicações React, de usar o useEffect() passando um array vazio, para quando aquele componente montar, fazermos esse pedido e montarmos a tela. Não funcionará dessa forma.
+
+Quando alguém fizer o pedido para a página, o servidor do Next fará este pedido do lado do servidor, montar a tela, e devolver para o navegador. Como fazemos isso?
+
+Nesta versão do Next, a única coisa que precisamos fazer é anotar o componente como assíncrono (async), porque sendo o componente assíncrono, conseguimos fazer chamadas assíncronas e o Next fará tudo o que for necessário para obter os dados do lado do servidor.
+
+// código omitido
+
+export default async function Home() {
+  return (
+    <main>
+      <CardPost post={post} />
+    </main>
+  )
+}
+COPIAR CÓDIGO
+Se a única ação necessária é adicionar async antes de function Home(), podemos dizer na linha 28, após a declaração da função, que const posts receberá o resultado de await getAllPosts().
+
+Com isso, aguardamos a resposta de fetch(), e o que vier de resposta do JSON, irá virar o array de posts. Assim, podemos trabalhar o componente como trabalharíamos em uma aplicação React. Na tag <main>, faremos um {posts.map()}, onde teremos acesso ao post e retornaremos o <CardPost>.
+
+export default async function Home() {
+  const posts = await getAllPosts()
+  return (
+    <main>
+      {posts.map(post =>  <CardPost post={post} />)}
+    </main>
+  )
+}
+COPIAR CÓDIGO
+Detalhe: nesse momento, a constante post da linha 3 pode ser comentada. Não precisamos mais dela, porque agora vamos pegar todos os posts da nossa API.
+// const post = {
+//   "id": 1,
+//   "cover": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/posts/introducao-ao-react.png",
+//   "title": "Introdução ao React",
+//   "slug": "introducao-ao-react",
+//   "body": "Neste post, vamos explorar os conceitos básicos do React, uma biblioteca JavaScript para construir interfaces de usuário. Vamos cobrir componentes, JSX e estados.",
+//   "markdown": "```javascript\nfunction HelloComponent() {\n  return <h1>Hello, world!</h1>;\n}\n```",
+//   "author": {
+//       "id": 101,
+//       "name": "Ana Beatriz",
+//       "username": "anabeatriz_dev",
+//       "avatar": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/authors/anabeatriz_dev.png"
+//   }
+// }
+COPIAR CÓDIGO
+Vamos testar? Após salvar, verificaremos no navegador se tudo funcionou corretamente. De volta à página do Code Connect, ao recarregar, teremos acesso a todos os posts.
+
+Ainda precisamos ajustar um pouco o layout, pois os posts estão um abaixo do outro sem nenhum tipo de espaçamento, mas ele pegou todos os posts e renderizou na tela para nós.
+
+Conclusão
+Sendo assim, ainda temos algumas coisas para fazer, principalmente tratamento de erros e ajustes de layout, mas a nossa API já se comunica com a nossa aplicação Next.
+
+Vamos continuar, pois temos muitas coisas interessantes para trabalhar!
+
+@@05
+Escrevendo logs
+
+Já temos nossa aplicação Next consumindo dados da API. Vamos abrir o inspecionador de elementos no navegador, no endereço "localhost:3000", e observar alguns pontos juntos.
+Escrevendo logs
+Vamos deixar a aba "Network" aberta no Developer Tools. Quando recarregamos a página, notamos que vários pedidos são feitos, mas nenhum deles é um pedido para a API "/posts".
+
+Fazendo um paralelo, se estivéssemos em uma aplicação React, esse pedido com os posts estaria visível nesta aba, que seria o navegador pedindo e não o back-end, isto é, o nosso Next.
+
+Agora, antes de seguirmos e evoluirmos, absorvendo ainda mais a funcionalidade do Next, vamos abrir o VS Code e acessar a função getAllPosts() no arquivo page.js. O que fazemos é um console.log() com a mensagem "Ops, alguma coisa correu mal".
+
+O Next.js é um framework full-stack (completo) que fará back-end, front-end, e uma das coisas indispensáveis para termos uma boa aplicação em execução e conseguirmos trabalhar em cima de resolução de bugs, é termos os logs bem organizados.
+
+Portanto, esses métodos console.log() que costumamos usar, às vezes, não tem nada errado, mas neste cenário, não necessariamente teremos, por exemplo, acesso ao terminal, ao bash, ou ao servidor. Dessa forma, quem rodará o Next, que está na Vercel?
+
+Nesse cenário, precisamos ter alguma forma de trabalhar com logs.
+
+Conhecendo o winston
+Vamos mostrar como podemos fazer isso. De volta ao navegador, conheceremos o winston. Basicamente, o logger winston é um pacote que fará várias coisas super bacanas relacionadas a escrever logs na aplicação. Vamos entender como ele funciona?
+
+Em README.md, há um link para a documentação, um texto que diz qual é a motivação, e um exemplo de uso para criar um logger e passar a poder escrever com ele.
+
+Não usaremos mais o método console.log(), mas sim os logs de verdade, robustos, preparados para fazer o log que chamamos de aplicacional, referente a coisas que acontecem na nossa aplicação, seja um log de erro, um log informativo, ou um log de aviso.
+
+Conectando o log com a aplicação
+Com o terminal aberto, acabamos de fazer o commit do que fizemos no último vídeo, e o que vamos fazer agora é instalar o winston. Para isso, digitamos o seguinte comando:
+
+npm install winston
+COPIAR CÓDIGO
+Com esse comando, será instalado o winston no code-connect. Como retorno, temos a mensagem de que deu tudo certo, com zero vulnerabilidades, o que é bem legal, e agora podemos criar o nosso logger.
+
+Criando o logger
+Observe o que vamos fazer e onde vamos criar. Primeiramente, vamos acessar o exemplo de criação do logger na documentação do winston e trabalharemos em cima desse exemplo. Copiaremos o trecho de código abaixo e na sequência faremos as alterações necessárias.
+
+const winston = require('winston');
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  defaultMeta: { service: 'user-service' },
+  transports: [
+    //
+    // - Write all logs with importance level of `error` or less to `error.log`
+    // - Write all logs with importance level of `info` or less to `combined.log`
+    //
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+//
+// If we're not in production then log to the `console` with the format:
+// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
+//
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple(),
+  }));
+}
+COPIAR CÓDIGO
+No VS Code, dentro de "src", criaremos um novo arquivo chamado logger.js. Neste arquivo, vamos colar o que código que copiamos do exemplo. O que vamos fazer de diferente?
+
+Primeiro, vamos remover o defaultMeta da linha 6, porque isso só aumenta informações que podemos colocar no logger. Também vamos remover da linha 16 à linha 24.
+
+Em seguida, vamos ajustar um detalhe: na linha 1, é importado o winston com require(), e o próprio VS Code pergunta se queremos converter isso pra módulos do ECMAScript. Faremos esse ajuste.
+
+Na sequência, vamos remover o apelido das importações format e transports, deixando somente o nome sem underscore. Feito isso, precisamos fazer é os nomes no código. Na linha 5, colocaremos format.json(), e nas linhas 11 e 12, transports.File().
+
+Assim, importamos createLogger, format e transports, e configuramos a instância do logger.
+
+Por último, precisamos exportar isso. Em vez de fazer um export logger, faremos export default logger. Por padrão, ele exporta logger se alguém quiser importar alguma coisa deste arquivo.
+
+logger.js:
+import { createLogger, format, transports } from 'winston';
+
+const logger = createLogger({
+  level: 'info',
+  format: format.json(),
+  transports: [
+    //
+    // - Write all logs with importance level of `error` or less to `error.log`
+    // - Write all logs with importance level of `info` or less to `combined.log`
+    //
+    new transports.File({ filename: 'error.log', level: 'error' }),
+    new transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+export default logger
+COPIAR CÓDIGO
+O que o winston está fazendo nesse momento? O nível (level) do nosso logger é informativo (info), então se fizermos um log verboso e fizermos algo muito específico, ele vai ignorar e colocará apenas do nível info para cima. Deixaremos uma atividade a seguir que vai detalhar esses níveis e algumas boas práticas em relação ao log.
+
+O formato (format) será o JSON, e o transports, que é a camada de onde ficará esse log, separa tudo o que for erro em um arquivo chamado error.log, e todo o restante em combined.log.
+
+São esses os arquivos que vamos usar. A única coisa que faremos será criar estes arquivos na raiz do nosso projeto, ao lado do arquivo package.json. Na raiz, clicamos com o botão direito e selecionamos "New File…". Primeiro criamos error.log, e depois combined.log.
+
+Atenção: devemos criar na raiz, não em "src".
+Utilizando o logger
+Agora, como consumir este arquivo? Vamos voltar ao arquivo page.js, dentro de "src > app". Na linha 21, temos um console.log() com a mensagem "Ops, alguma coisa correu mal".
+
+Porém, não vamos usar mais o método console.log(); chamaremos logger.error(), pois se alguma coisa deu errado, teremos um log de erro. Quando fizermos isso, o VS Code importará automaticamente o logger na linha 2, com import logger from "@/logger".
+
+Fora do bloco if, se está tudo bem, ou seja, se a resposta for OK, podemos fazer, por exemplo, um logger.info() recebendo a mensagem "Posts obtidos com sucesso".
+
+page.js:
+import { CardPost } from "@/components/CardPost"
+import logger from "@/logger"
+
+// código omitido
+
+async function getAllPosts () {
+  const response = await fetch('http://localhost:3042/posts')
+  if (!response.ok) {
+    logger.error('Ops, alguma coisa correu mal')
+  }
+  logger.info('Posts obtidos com sucesso')
+  return response.json()
+}
+
+// código omitido
+COPIAR CÓDIGO
+Testando o código
+Uma vez salvo, como testamos isso? De volta ao navegador, vamos recarregar a página traz todos os posts. No VS Code, o arquivo combined.log terá a mensagem "Posts obtidos com sucesso".
+
+combined.log:
+{"level":"info","message":"Posts obtidos com sucesso"}
+{"level":"info","message":"Posts obtidos com sucesso"}
+COPIAR CÓDIGO
+Era isso que queríamos mostrar. Imagine que digitamos algo errado, por exemplo, no arquivo page.js, onde fazemos await fetch(). Suponha que digitamos "/postss", com dois "S" no final.
+
+Recarregando a página no navegador, ele informa que há um token não esperado e que não é um JSON válido. Agora, no arquivo error.log temos a mensagem "Ops, alguma coisa correu mal".
+
+error.log:
+{"level":"error","message":"Ops, alguma coisa correu mal"}
+{"level":"error","message":"Ops, alguma coisa correu mal"}
+COPIAR CÓDIGO
+Assim, temos o log error.log separado do combined.log, mas ainda podemos organizar para não ficar tudo em error.log. Também podemos fazer o seguinte: não queremos que nossa aplicação quebre se algo der errado, então se a resposta não for OK, retornamos um array vazio (return []) para não quebrar a aplicação em que estivermos construindo esses posts.
+
+page.js:
+// código omitido
+
+async function getAllPosts () {
+  const response = await fetch('http://localhost:3042/posts')
+  if (!response.ok) {
+    logger.error('Ops, alguma coisa correu mal')
+    return []
+  }
+  logger.info('Posts obtidos com sucesso')
+  return response.json()
+}
+
+// código omitido
+COPIAR CÓDIGO
+Dessa forma, não ocorrerá aquele tipo de erro que visualizamos na tela, tudo ficará conforme esperado, e poderemos consultar os arquivos de log (combined.log e error.log).
+
+Conclusão
+Neste vídeo, aprendemos a configurar o logger winston na aplicação Code Connect!
+
+@@06
+Mão na massa: montando o grid dos card
+
+Chegou a sua hora! Nessa atividade você terá de organizar um grid com os cards. Mas não se preocupe que vou te ajudar nessa missão, se você precisar. O layout proposto é esse:
+A imagem apresenta quatro repetições de um modelo de post para uma interface de usuário de rede social ou blog, estruturados de maneira idêntica. Cada modelo inclui uma seção superior com três visualizações de interface de usuário, mostrando elementos de design como botões e gráficos sobre um fundo gradiente. Abaixo das visualizações, há um título em negrito "Título do post em duas linhas" e um parágrafo de texto em latim, utilizado como texto de preenchimento. No canto inferior direito de cada modelo, há um ícone circular representando um usuário, acompanhado pelo nome de usuário "@julio". O design é limpo e moderno, com uma paleta de cores que varia do roxo ao rosa, sugerindo uma estética minimalista e focada em usabilidade.
+
+Existem várias formas de fazer isso. Por exemplo:
+
+Flexbox
+Grid
+Lembre-se que você vai ter um gabarito, se precisar. Mas eu super recomendo que você experimente, pratique e chegue a uma versão sua desse grid!
+
+Tudo no lugar? Os cards ficaram todos bem posicionados? Missão cumprida! Parabéns.
+https://media1.tenor.com/m/g5cyfFrLhD0AAAAC/despicable-me-minions.gif
+
+Praticar é uma das melhores formas de aprender. Então to orgulhoso por você ter chegado ao seu resultado. E claro que eu também resolvi esse desafio, vou te passar o meu resultado: aqui no github você consegue ver exatamente os arquivos que eu alterei.
+
+Vamos analisar juntos?
+
+Pra montar o layout base, com o aside sempre a esquerda, eu fiz assim:
+
+No arquivo src/app/globals.css:
+
+
+* {
+  box-sizing: border-box;
+}
+body {
+  background: linear-gradient(180deg, #0E1112 0%, #00090E 100%);
+  margin: 0;
+  min-height: 100vh;
+}
+.app-container {
+  width: 1200px;
+  max-width: 90%;
+  margin: 56px auto;
+  display: flex;
+  gap: 28px;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex-grow: 1;
+}
+COPIAR CÓDIGO
+E no arquivo:
+
+
+// imports omitidos
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="pt-br" className={prompt.className}>
+      <body>
+        <div className='app-container'>
+          <div>
+            <Aside />
+          </div>
+          <div className='main-content'>
+            {children}
+          </div>
+        </div>
+      </body>
+    </html>
+  )
+}
+COPIAR CÓDIGO
+Repara que o main-content é o conteúdo principal da página, que vai crescer até a largura máxima disponível.
+
+Pra montar o grid, eu fui de flebox:
+
+
+.grid {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+COPIAR CÓDIGO
+O display: flex; alinha os elementos lado a lado. O gap: 24px; vai dar um espaço de respiro entre os cards, para que tudo não fique amontoado. O flex-wrap: wrap; permite que os elementos, ao chegarem no fim da linha, comecem uma nova, assim como quando você está escrevendo e chega no fim da margem do papel. E o justify-content: space-between; distribui os elementos ao longo do eixo horizontal (eixo x), garantindo que o espaço entre cada um seja igual. Prático, né?
+
+E, pra fechar, eu adicionei um height: 100%; no Aside pra ele ficar com a altura máxima disponível!
+
+https://www.alura.com.br/artigos/css-guia-do-flexbox
+
+https://www.alura.com.br/artigos/criando-layouts-com-css-grid-layout
+
+@@07
+Para saber mais: a importância de bons logs
+
+Desde os primeiros computadores, manter um registro sequencial dos processos é super importante para entendermos a ordem de execução das coisas e identificar falhas.
+Logs economizam tempo e são essenciais na resolução de problemas e suporte de incidentes. Eles são fundamentais para rastrear o fluxo da informação e melhorar o desempenho, algo que a monitorização de desempenho de aplicativos (APM) não consegue sozinha.
+
+A análise de log é crucial. Logs revelam comportamentos anormais e possíveis pontos de melhoria. Ferramentas apropriadas podem descobrir gargalos de desempenho e melhorias não visíveis durante o desenvolvimento. A análise prolongada de logs também ajuda a identificar falhas de segurança.
+
+Existem dois tipos principais de logs: diagnóstico e auditoria. Logs de diagnóstico estão relacionados ao comportamento da aplicação e ao fluxo da informação - como por exemplo dizer que algo deu errado, quando e porquê, enquanto logs de auditoria registram transações (quem fez o que e quando), para requisitos de software ou simplesmente para o cumprimento de leis.
+
+Um ponto importante: devemos sempre usar níveis apropriados de log para identificar a criticidade dos eventos.
+
+Os níveis básicos são:
+
+error - erro,
+warning - aviso,
+info - informação,
+debug - depuração
+trace - rastreamento.
+Quando a gente precisa solucionar um problema em uma aplicação Node.js, os logs podem ser fundamentais para entender a gravidade e a causa do problema. Stack traces (rastros de pilha) e outros tipos de atividades podem ser capturados em logs e vinculados a IDs de uma sessão específica, ID de um usuário — qualquer coisa que ajude a monitorar sua aplicação de forma mais eficiente.
+
+O Node.js já vem com recursos de registro de logs integrados, como o console.log, mas uma biblioteca dedicada de logs, como o Winston, oferece mais opções para escrever os registros da sua aplicação. E foi por isso que utilizamos ele!
+
+Para conhecer mais sobre o winston, que tal uma olhada na documentação para ir mais fundo sobre o quão poderoso ele é.
+
+https://github.com/winstonjs/winston
+
+@@08
+Tratamento de erros
+
+Durante nossa aula, implementamos uma integração com a api que levantamos com o json-server:
+
+async function getAllPosts () {
+  const response = await fetch('http://localhost:3042/posts')
+  if (!response.ok) {
+    logger.error('Ops, alguma coisa correu mal')
+    return []
+  }
+  logger.info('Posts obtidos com sucesso')
+  return response.json()
+}
+COPIAR CÓDIGO
+Como você poderia melhorar a função getAllPosts para garantir que ela lide de forma mais eficaz com possíveis erros de rede e respostas não esperadas do servidor?
+
+Selecione 2 alternativas
+
+
+
+async function getAllPosts () {
+  return fetch('http://localhost:3042/posts')
+    .then(response => response.json())
+    .catch(error => {
+      logger.error('Ops, algo correu mal');
+      return [];
+    });
+}
+ 
+Alternativa correta
+async function getAllPosts () {
+  try {
+    const response = await fetch('http://localhost:3042/posts');
+    if (!response.ok) throw new Error('Falha na rede');
+    return response.json();
+  } catch (error) {
+    logger.error('Ops, algo correu mal: ' + error.message);
+    return [];
+  }
+}
+ 
+Esta alternativa adiciona um bloco try-catch para lidar com exceções lançadas durante a requisição, incluindo erros de rede, e utiliza a mensagem de erro para informar o problema.
+Alternativa correta
+async function getAllPosts () {
+  const response = await fetch('http://localhost:3042/posts');
+  if (!response.ok) {
+    logger.error('Falha na resposta do servidor');
+    return [];
+  }
+  return response.json();
+}
+ 
+Alternativa correta
+async function getAllPosts () {
+  const response = await fetch('http://localhost:3042/posts').catch(error => {
+    logger.error('Erro de rede: ' + error.message);
+    return null;
+  });
+  if (!response || !response.ok) {
+    logger.error('Problema ao obter os posts');
+    return [];
+  }
+  return response.json();
+}
+ 
+Esta alternativa utiliza o método .catch() para capturar erros de rede e verifica se response é um objeto válido e se response.ok é verdadeiro antes de tentar converter a resposta em JSON.
+
+@@09
+Faça como eu fiz: integração com a API
+
+Bora então codar essa integração? A gente começa pelo JSON Server. Você pode baixar o arquivo posts.json:
+posts.json
+Instalar o json-server:
+
+
+npm i -g json-server@1.0.0-alpha.22
+COPIAR CÓDIGO
+Então, com o terminal aberto na pasta onde você salvou o posts.json, você pode subir a api:
+
+
+json-server posts.json -p 3042
+COPIAR CÓDIGO
+E agora é a hora de implementar o fetchque vai buscar todos os posts disponíveis para o Code Connect.
+
+https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/posts.json
+
+E, como sempre, o gabarito tá super disponível pra você.
+Não deixe de compartilhar o seu progresso e ir tomando as notas para que você consiga compartilhar nas redes sociais como tem sido a sua jornada com o Next.js. Pode usar a hashtag #aprendinaalura e me marcar no LinkedIn ou no Instagram
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/compare/aula-2...aula-3?expand=1
+
+https://www.linkedin.com/in/vinny-neves/
+
+https://www.instagram.com/vinicios_neves/
+
+@@10
+O que aprendemos?
+
+Nessa aula, você aprendeu como:
+Subir uma API usando o json-server;
+Obter dados do lado do Servidor;
+Configurar o winton como o logger da Code Co
