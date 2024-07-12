@@ -4,7 +4,9 @@ Curso Next.js: conheça o framework React
 
 ```
 npx create-next-app@14  
-npm run dev   
+npm run dev
+npm i json-server 
+json-server posts.json -p 3042 
 ```
 
 @01-Criando o projeto 
@@ -1916,3 +1918,951 @@ Nessa aula, você aprendeu como:
 Subir uma API usando o json-server;
 Obter dados do lado do Servidor;
 Configurar o winton como o logger da Code Co
+
+#### 11/07/2024
+
+@04-Paginando dados
+
+@@01
+Projeto da aula anterior
+
+Caso queira começar daqui, você pode acessar o projeto da aula anterior, ou, se preferir, fazer o download do arquivo.
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/tree/aula-3
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/archive/refs/heads/aula-3.zip
+
+@@02
+Obtendo a primeira página
+
+Transcrição
+
+Vamos prosseguir com a implementação do server-side (lado do servidor) do CodeConnect. Já estamos conectados com uma API, portanto, já buscamos os dados da API que o JSON Server subiu.
+Houve um desafio na última atividade da aula anterior para organizar o grid. Confira uma forma de solução que disponibilizamos no gabarito, caso você ainda não o tenha feito. Você deve ficar com um layout semelhante ao nosso, onde os posts estão todos lado a lado.
+
+Entendendo paginação
+Agora, precisamos trabalhar na paginação. Atualmente, exibimos todos os posts. Por acaso, tem 12, mas se tivessem 600, estariam os 600 em uma só página. Precisamos começar a organizar e paginar essas informações.
+
+A nossa API já faz isso. Vamos abrir a documentação do JSON Server no navegador pelo npm. A documentação nos informa que, para conseguir pegar esses dados paginados, é preciso um parâmetro _page e _per_page.
+
+GET /posts?_page=1&_per_page=25
+COPIAR CÓDIGO
+Esse cenário é o que queremos - a única diferença é que não queremos 25 páginas, queremos de 6 em 6.
+
+Vamos voltar no terminal e abrir a aba onde estou rodando o json-server. Vamos selecionar o endpoint de POST, localhost na 3042/posts, clicar com o botão direito e escolher a opção "Open Link" para abrir no navegador.
+
+O resultado são todos os nossos posts, mas não é isso que queremos. Queremos de 6 em 6. Então, o que vamos fazer? Seguir a documentação.
+
+Na documentação sobre paginação, vamos copiar os parâmetros, onde temos _page=1 e _per_page=25, vamos colá-la ao final da URL do localhost na 3042/posts. Agora temos um _page igual a 1 e um _per_page igual à 6.
+
+localhost:3042/posts?_page=1&_per_page=6
+COPIAR CÓDIGO
+De onde estão saindo essa quantidade? Do Figma. Na página de posts do Figma do CodeConnect, são exibidos 6 posts e, logo abaixo, um botão "Próxima página".
+
+Enquanto existir uma próxima página, vamos continuar a exibir esse botão. E, quando existir uma página anterior, vamos acrescentar essa opção de navegação também.
+
+Com tudo isso organizado, podemos agora ir para o lado da implementação. Ressaltamos que anteriormente recebíamos um array com todos os posts, porque pegávamos todos.
+
+Agora recebemos um objeto que tem qual é a primeira página, qual é a página anterior, qual é a próxima, qual é a última, quantas páginas tem, o total de itens e, por fim, a propriedade data, que vai conter o nosso array de posts.
+
+{
+    "first": 1,
+    "prev": null,
+    "next": 2,
+    "last": 2,
+    "pages": 2,
+    "items": 12,
+    "data": [
+        {
+            "id": "1",
+            "cover": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/posts/introducao-ao-react.png",
+            "title": "Introdução ao React",
+            "slug": "introducao-ao-react",
+            "body": "Neste post, vamos explorar os conceitos básicos do React, uma biblioteca JavaScript para construir interfaces de usuário. Vamos cobrir componentes, JSX e estados.",
+            "markdown": "```javascript\nfunction HelloComponent() {\n  return <h1>Hello, world!</h1>;\n}\n```",
+            "author": {
+                    "id": 101,
+                    "name": "Ana Beatriz",
+                    "username": "anabeatriz_dev",
+                    "avatar": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/authors/anabeatriz_dev.png"
+            }
+        }
+        [restante omitido…]
+    ]
+}
+COPIAR CÓDIGO
+Então, vamos ter que implementar isso, alterando a nossa função.
+
+Alterando a resposta
+Dentro de page.js, temos a nossa função getAllPosts(), que já tem aquela URL localhost:3042/posts.
+
+O que devemos fazer? Devemos adicionar os parâmetros de página e por página. Podemos pegar a URL do navegador, que já está correta, e colar dentro do fetch().
+
+Em resumo, fizemos um fetch() de localhost:3042/posts?_page=1&_per_page=6. Assim, informamos que queremos a primeira página de 6 em 6 posts.
+
+Só que essa página não pode ser fixa. Enquanto o per_page é fixo, pois sempre vamos querer de 6 em 6.
+
+Para resolver isso, podemos receber essa página por parâmetro. Ao invés de deixar a página 1 fixa no código, vamos receber essa page por parâmetro.
+
+Além disso, agora temos que concatenar essa página que recebemos dentro da nossa string. No fetch(), ao invés de usar uma aspa simples, vamos mudar para crase e isso vai permitir que façamos a interpolação.
+
+Ao invés de 1, vamos colocar cifrão, abre e fecha chaves (${}). Dentro, vamos colocar a page que recebemos por parâmetro.
+
+page.js:
+async function getAllPosts (page) {
+  const response = await fetch(`http://localhost:3042/posts?_page=${page}&_per_page=6`)
+  if (!response.ok) {
+    logger.error('Ops, alguma coisa correu mal')
+    return []
+  }
+  logger.info('Posts obtidos com sucesso')
+  return response.json()
+}
+COPIAR CÓDIGO
+E na nossa linha de 17, na função Home(), onde estamos buscando todos os posts e armazenando na constante posts, vamos passar a página 1.
+
+Porém, agora teremos várias informações. Então, o array de posts está dentro daquela propriedade data. Para ajustar o código, devemos fazer um destructuring do que vier. Basta pegar a propriedade data e renomeá-la para posts.
+
+export default async function Home() {
+  const { data: posts } = await getAllPosts(1)
+  return (
+    <main className={styles.grid}>
+      {posts.map(post =>  <CardPost post={post} />)}
+    </main>
+  )
+}
+COPIAR CÓDIGO
+Com isso, pegamos a propriedade data que vem do nosso retorno e a renomeamos para posts.
+
+Na teoria, vai funcionar. Para testar, salvamos o page.js e recarregamos a página do CodeConnect no navegador. Agora, sim, ele está exibindo de 6 em 6 posts.
+
+Também conferimos que não aparece nenhum erro no console do navegador. Por fim, conferimos o terminal, onde está rodando o servidor do Next.
+
+Warning: Each child in a list should have a unique "key" prop.
+Apesar de estar compilado, aparece um aviso de que cada filho numa lista deveria ter uma propriedade única chamada key. Essa é a mesma regra que qualquer renderização de lista no React. Só que, dessa vez, não é o console do navegador que vai reclamar conosco que esquecemos de fazer isso, é o console onde está rodando o npm run dev, o servidor do Next.
+
+Vamos ajustar isso? Na linha 20 do código, onde fazemos o posts.map(), além de passar o post para o CardPost, vamos passar também uma key.
+
+Entre chaves, vamos usar como key o post.id. Esse id é o que vem do servidor, é um id incremental, portanto, ele é um bom candidato para ser a nossa chave.
+
+export default async function Home() {
+  const { data: posts } = await getAllPosts(1)
+  return (
+    <main className={styles.grid}>
+      {posts.map(post =>  <CardPost key={post.id} post={post} />)}
+    </main>
+  )
+}
+COPIAR CÓDIGO
+Vamos verificar se o terminal agora apresenta algum erro? Ele compilou e não reclamou mais. Também podemos pará-lo e executá-lo novamente com npm run dev para ter certeza que aquele erro do console sumiu.
+
+Ready in 1291 ms
+Agora que está tudo pronto, recarregamos a página no navegador. Tudo certo! Sem erro no console do navegador ou no terminal.
+
+Conclusão
+Nesse vídeo, demos o primeiro passo na direção da paginação, mas ainda tem mais funcionalidades que podemos fazer e melhorar. Inclusive, podemos entregar esses comandos de paginação para a pessoa usuária. Vamos lá?
+
+@@03
+Páginas como parâmetros
+
+Demos o nosso primeiro passo em direção à paginação. Já trazemos a primeira página, pegando os seis primeiros resultados. Agora, precisamos entregar esse controle para a pessoa usuária.
+Antes de começar, gostaríamos de trazer uma reflexão. Em um cenário onde estivéssemos codando uma aplicação React, poderíamos ter um useState, um estado, para saber em qual página estamos e criar essa paginação do lado do cliente, apenas pegando os dados incrementais.
+
+Como estamos focados em desenvolver do lado do servidor, quem vai controlar essa paginação será o Next, não será o estado do componente React.
+
+Páginas como parâmetros
+Existem algumas estratégias de paginação. Uma delas, que consideramos bastante interessante, é indicar na URL qual é a página em que estamos.
+
+Isso é útil quando compartilhamos um link e queremos que a pessoa que vai receber esse link visualize o mesmo resultado. Se está na página 3, copiamos o link da página 3 e a enviamos.
+
+Como poderíamos fazer isso? Na URL, no localhost:3000, no navegador, poderíamos ter um ? e ter um page=1. Quem controlaria essa página seria esse parâmetro na URL. Independente se estamos vindo de uma navegação ou se estamos abrindo direto no link, o Next vai saber qual página ele vai exibir.
+
+Antes de ir para o código, voltamos na aba onde temos o localhost:3042/posts e os parâmetros de paginação. Temos o parâmetro prev e o next, que indicam a página anterior e a próxima página, respectivamente.
+
+"prev": null,
+"next": 2,
+COPIAR CÓDIGO
+Por exemplo, se trocamos de página 1 para a página 2 na URL, a próxima página torna-se nula e a página anterior agora é a página 1.
+
+"prev": 1,
+"next": null,
+COPIAR CÓDIGO
+Podemos usar esse retorno e confiar no retorno do back-end dessa nossa API para fazer essa paginação.
+
+Na função Home() de page.js no VS Code, além de pegar data e renomear para posts, queremos pegar o prev e o next, página anterior e próxima página.
+
+Dado esse cenário, podemos fazer a lógica de renderização condicional do React. Se temos prev, ou seja, tem uma página anterior, vamos exibir um link de âncora. Para isso, após posts.map(), entre chaves, escrevemos prev seguido de dois "E" comerciais (&&) e a tag <a>.
+
+O href vai ser para onde? Primeiro, teremos que interpolar esse valor, portanto, não podemos passá-lo como string. Vamos abrir e fechar chaves, abrir e fechar crase e, agora, sim, vai ter uma barra (/), pois vai para a raiz da nossa aplicação.
+
+Depois, acrescentamos uma interrogação (?) para indicar que vamos passar parâmetros. O parâmetro vai ser page=, e, dentro de chaves, vamos colocar a página anterior, prev.
+
+Como conteúdo da nossa tag de link, vamos digitar Página anterior.
+
+Faremos o mesmo para a próxima página, só que vamos trocar de prev para next. E o conteúdo não será mais Página anterior, será Próxima página.
+
+page.js:
+export default async function Home() {
+    const { data: posts, prev, next } = await getAllPosts(1)
+    return (
+        <main className={styles.grid}>
+            {posts.map(post =>  <CardPost key={post.id} post={post} />)}
+            {prev && <a href={`/?page=${prev}`}>Página anterior</a>}
+            {prev && <a href={`/?page=${next}`}>Próxima página</a>}
+        </main>
+    )
+}
+COPIAR CÓDIGO
+Agora, vamos exibir isso condicionalmente, baseado nos valores que estamos recebendo da API.
+
+Vamos testar se funciona? Ainda está sem estilo nenhum, sem CSS, mas, por enquanto, queremos focar no comportamento. No final da primeira página do CodeConnect no navegador, é exibido o link "Próxima página". Como estamos na página 1, a página 2 é a próxima.
+
+Clicamos em "Próxima página", a aplicação é recarregada e a URL já se modifica. Porém, ao final da página, é exibido novamente "Próxima página".
+
+Por que ele está exibindo sempre "Próxima página"? Porque não estamos obtendo essa página para passar para o getAllPosts(), estamos pegando sempre a página 1. Apesar do comportamento estar correto, é preciso consertar isso.
+
+Mas, antes disso, vamos fazer outra modificação.
+
+Estamos usando a tag <a>, que é uma âncora do HTML normal, como usamos no front-end no geral. Porém, quando fazemos essa navegação, ele recarrega a página inteira, já que esse é o comportamento da âncora.
+
+Quando estamos trabalhando com o Next, o Next consegue otimizar isso. E a única coisa que temos que fazer é, ao invés de usar a tag <a>, usar a tag <Link> que o Next nos fornece, bem parecido com o que fizemos com o componente <Image>.
+
+No VS Code, ao invés de usar a tag <a>, queremos usar o componente <Link>. O VS Code já sugere importar o Link do next/Link. Agora, o que temos que fazer é consertar toda a marcação no JSX, tanto da página anterior quanto da próxima página.
+
+import Link from "next/link"
+
+export default async function Home() {
+    const { data: posts, prev, next } = await getAllPosts(1)
+    return (
+        <main className={styles.grid}>
+            {posts.map(post =>  <CardPost key={post.id} post={post} />)}
+            {prev && <Link href={`/?page=${prev}`}>Página anterior</Link>}
+            {prev && <Link href={`/?page=${next}`}>Próxima página</Link>}
+        </main>
+    )
+}
+COPIAR CÓDIGO
+Após salvar, voltamos no navegador e recarregamos a página. Agora, se clicarmos em "Próxima página", o ícone favicon não indica mais o recarregamento completo da página. O próprio Next vai cuidar de atualizar essa página, sem precisar que o navegador faça o pedido de carregar tudo de novo.
+
+Agora que já temos um controle de navegação, podemos evoluir a nossa aplicação para passar essa página para a nossa API. Aí, sim, vamos ter esse controle de "Próxima página" ou "Página anterior", porque vamos reagir ao resultado que a API nos trouxer.
+
+Até o próximo vídeo!
+
+@@04
+Entendendo o searchParams
+
+Nossa paginação já está bem avançada, já temos o controle de navegação, usando o <Link> do Next. O que precisamos fazer agora é capturar o valor.
+Precisamos saber o valor da página na URL da nossa aplicação, e capturar essa página, seja ela 1 ou 2. Ou, se não tiver nenhuma, podemos passar o valor padrão de 1.
+
+Antes de começar a codificar, queremos te mostrar, na documentação do Next, onde se fala sobre isso. No navegador, abrimos nextjs.org/docs/app em um tópico específico sobre como acessar a URL em uma página.
+
+A documentação indica que temos acesso a algumas propriedades que o Next injeta, quando estamos falando no contexto de uma página.
+
+Acessando URL de uma página
+Na nossa página, no VS Code, temos a página Home. Ela deve receber params ou as próprias props que o Next injeta para nós.
+
+Vamos fazer um destructing, porque o que queremos pegar é o searchParams, ou seja, queremos a query string. Em outras palavras, queremos pegar o segmento da URL depois da interrogação.
+
+Por isso que queremos prestar atenção, no searchParams.
+
+page.js:
+export default async function Home({ searchParams }) {
+    // código omitido…
+}
+COPIAR CÓDIGO
+Agora, devemos conferir qual a nossa página atual. Por isso, vamos criar uma constante chamada currentPage, pois será a página atual. Ela vai receber searchParams. Porém, esse valor pode ser nulo ou undefined, pois pode não existir. Então, devemos usar o operador de interrogação ponto (?.) seguido da propriedade page.
+
+Desse modo, se o searchParams não existir, ele não vai quebrar e dar um erro que estamos tentando ler a propriedade page de undefined.
+
+Só que, além de fazer isso, queremos passar um fallback, um cenário que não quebre caso a página não exista. Então, vamos dizer que é searchParams?.page ou 1. Se não tiver página, é a página 1.
+
+E ao invés agora de passar sempre a página 1 para o getAllPosts(), vamos chamar a página atual armazenada em currentPage.
+
+export default async function Home({ searchParams }) {
+    const currentPage = searchParams?.page || 1
+    const { data: posts, prev, next } = await getAllPosts(currentPage)
+    
+    // código omitido…
+}
+COPIAR CÓDIGO
+Vamos ver se isso funciona? No navegador, vamos recarregar a página 2 do CodeConnect. Parece que mudou, pois as imagens estão diferentes. Se clicamos em "Página anterior", voltamos para a página 1.
+
+Agora já temos as opções de "Próxima página" ou "Página anterior" mudando dinamicamente. Repare que tem um cache tão leve, que é praticamente instantâneo depois do primeiro carregamento.
+
+Vamos fazer um teste final, conferindo caso não tenha nenhuma página na URL. Então, vamos acessar direto localhost:3000. A página carregou e tudo foi exibido corretamente, incluindo o link de "Próxima página".
+
+Conclusão
+Com esse cenário, estamos obtendo os dados paginados, pegando da URL e, de novo, do lado do servidor. Não precisamos mais controlar o estado e ficar preocupados com quando devemos ou não renderizar aquele componente, como fazíamos no React.
+
+Não precisamos mais colocar um useEffect para usar um efeito colateral caso a URL mudasse. Agora, vamos conferir sempre a URL e, quando o Next carregar a página, ele vai pegar, obter esse valor e aplicar a lógica que fizemos de paginação.
+
+Mas ainda temos alguns últimos detalhes que podemos implementar. Repare que o link está até com a fonte correta, por causa da fonte que o Next nos traz, porém, no Figma, esse link tem uma cor diferente e está centralizado.
+
+Desafio: Aplique alguns estilos no link de paginação para ficar parecido com o Figma do projeto. Vamos deixar uma atividade com o gabarito do CSS, se você quiser consultar.
+Lembre-se também de imaginar um cenário em que os dois links aparecem para não quebrar o layout.
+
+Te esperamos na próxima aula!
+
+@@05
+Mão na massa: montando o grid dos card
+
+Chegou a sua hora! Vamos aplicar mais estilos? Dessa vez temos que ajustar os estilos dos nossos Links:
+A imagem mostra uma interface de usuário que parece ser uma página de navegação de um site ou aplicativo. Dois modelos de post estão dispostos lado a lado, cada um contendo uma seção de visualização com três janelas de interface de usuário com design gráfico, botões e ícones, e um fundo gradiente. Abaixo das visualizações, há um título destacado "Título do post em duas linhas" e um bloco de texto em latim, comumente usado como texto de preenchimento. No canto inferior de cada post, encontra-se um ícone de usuário com o nome "@julio". Na parte inferior da interface, centralizado, está um botão ou link intitulado "Próxima página", indicando que há mais conteúdo disponível. A estética é profissional e moderna, com uma paleta de cores suaves.
+
+Lembre-se de tomar cuidado para que, quando existirem ambas as páginas (próxima e anterior), os textos fiquem bem direitinhos e com um espaçamento entre eles.
+
+Tudo no esquema? Links com a cor certa e no lugar certo?
+Como sempre, a minha solução pra a você dar aquela espiadinha: aqui no github você consegue ver exatamente os arquivos que eu alterei.
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/commit/afa881915d2685a5d68e5a5632d6bdac676990ae
+
+@@06
+Para saber mais: props de uma página Next.js
+
+Durante essa aula, nós obtemos os dados da query string da URL. O Next.js provê esses dados e injeta nas props de nossas páginas (page.js).
+Mas vamos relembrar o que são query string?
+
+Uma string para a todos governar
+Query String é uma extensão da URL base de um site, carregados por um navegador ou aplicação client side. Tradicionalmente, era usada para registrar o conteúdo de formulários HTML em uma página. Essa string é composta por pares campo-valor, como "campo=valor", unidos por um "&" e separados da URL base por um "?".
+
+Durante a aula, nós capturamos os valores da query string que representa a página que está sendo visualizada. E fizemos isso do lado do servidor:
+
+
+export default async function Home({ searchParams }) {
+  const currentPage = searchParams?.page || 1
+  // restante do código omitido
+}
+COPIAR CÓDIGO
+Caso seja necessário fazermos isso do lado do cliente, em casos mais específicos, também é possível! Basta utilizar o hook useSearchParams:
+
+
+'use client'
+ 
+import { useSearchParams } from 'next/navigation'
+ 
+export default function SearchBar() {
+  const searchParams = useSearchParams()
+ 
+  const search = searchParams.get('search')
+ 
+  // URL -> `/dashboard?search=my-project`
+  // `search` -> 'my-project'
+  return <>Search: {search}</>
+}
+COPIAR CÓDIGO
+Quero destacar aqui o 'use client': usamos isso para indicar para o Next.js que é um componente Client Side. Se quiser entender um pouco mais como isso funciona, pode dar uma olhada na documentação oficial, mas não se preocupe porque teremos cursos abordando essa funcionalidade com detalhes.
+
+@@07
+Navegação entre páginas
+
+Diferencie o componente Link do Next.js da tag <a> do HTML ao criar links para navegação interna em um projeto Next.js:
+Selecione 2 alternativas
+
+<a href="/sobre">Sobre nós</a> é melhor para SEO, pois os motores de busca priorizam tags <a> sobre componentes personalizados como Link.
+ 
+Alternativa correta
+Link funciona apenas para rotas internas, enquanto a tag <a> pode ser usada tanto para links internos quanto externos.
+ 
+O componente Link do Next.js é otimizado para navegação entre páginas dentro do mesmo aplicativo Next.js, enquanto a tag <a> é mais genérica e pode ser usada para qualquer URL.
+Alternativa correta
+<Link href="/sobre"><a>Sobre nós</a></Link> permite o pré-carregamento da página de destino, enquanto <a href="/sobre">Sobre nós</a> não tem essa funcionalidade.
+ 
+O componente Link do Next.js oferece a vantagem de pré-carregar a página de destino, proporcionando uma navegação mais rápida e suave.
+Alternativa correta
+<Link href="/sobre"><a>Sobre nós</a></Link> faz com que a página seja recarregada completamente, enquanto <a href="/sobre">Sobre nós</a> não recarrega a página.
+
+@@08
+Faça como eu fiz: integração com a API
+
+Agora vamos implementar a paginação dos dados, só que do lado do servidor. Tá pronta(o) pra isso? Sequência de passos:
+precisamos ajustar nosso método getAllPosts para receber a página como parâmetro.
+agora podemos obter a página atual da query string usando searchParams.
+ajustar nossa lógica para obter os dados paginados, próxima página e página anterior.
+Hora do show!
+
+E, como sempre, o gabarito tá super disponível pra você.
+Não deixe de compartilhar o seu progresso e ir tomando as notas para que você consiga compartilhar nas redes sociais como tem sido a sua jornada com o Next.js. Pode usar a hashtag #aprendinaalura e me marcar no LinkedIn ou no Instagram
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/compare/aula-3...aula-4?expand=1
+
+https://www.linkedin.com/in/vinny-neves/
+
+https://www.instagram.com/vinicios_neves/
+
+@@09
+O que aprendemos?
+
+Nessa aula, você aprendeu como:
+Obter dados da query string utilizando searchParams;
+Paginar os posts respeitando a interface da API;
+Exibir e controlar os comandos de paginação, baseado na resposta do backend.
+
+#### 12/07/2024
+
+@05-Páginas dinâmicas
+
+@@01
+Projeto da aula anterior
+
+Caso queira começar daqui, você pode acessar o projeto da aula anterior, ou, se preferir, fazer o download do arquivo.
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/tree/aula-4
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/archive/refs/heads/aula-4.zip
+
+@@02
+Link para o post
+
+Vamos discutir agora uma das características mais fascinantes do Next, que é sua abordagem única para o roteamento. Se você está familiarizado com o React, provavelmente já usou o React Router para definir quais componentes serão renderizados para diferentes rotas em sua aplicação.
+No entanto, o Next adota uma abordagem diferente. Em vez de depender exclusivamente de um roteador como o React Router, ele utiliza um roteamento baseado em arquivos. Esse método, comumente conhecido pelo termo em inglês File-Based Routing (Roteamento Baseado em Arquivos), simplifica bastante a estruturação e organização das rotas em seu aplicativo.
+
+Pensando nisso, e para trazer um pouco de conteúdo em nossa língua portuguesa, escrevi um artigo que está disponível no blog da Alura.
+
+Roteamento eficiente com Next.js: descobrindo o App Router
+Este artigo explica, em detalhes, como o roteamento funciona.
+
+Deixamos essa fonte de consulta disponível para você revisitar sempre que necessário. Mas lembre-se que a fonte de verdade sempre será a documentação do nosso framework , neste caso, do Next. Portanto, na documentação oficial também tem a parte de terminologia, como funciona.
+
+Se você quiser praticar um pouco de inglês e conferir a documentação original, sinta-se à vontade para fazê-lo! Mas se preferir ler em português e conferir a nossa versão da documentação, você pode encontrá-la disponível no blog da Alura.
+
+Implementando Roteamento
+Vamos verificar na prática como isso funciona. Estamos com o CodeConnect já rodando, na porta 3000. Lembrando que no terminal, são as duas abas que têm que ficar abertas, uma para o JSON Server, outra para a nossa aplicação Next. ** O que vamos fazer agora?** Já montamos todo o nosso layout, os posts, a paginação, já vimos como capturar dados lá em cima, a nossa page que vem na URL.
+
+Agora, desenvolveremos a página de detalhes do post. Para isso, precisamos ter um link, ou seja, quando clicarmos no card do post, seremos redirecionados para a página com todas as informações disponíveis naquele post.
+
+Como vamos fazer isso? Como funciona no Next? Vamos para o VSCode.
+
+Temos na nossa estrutura do lado esquerdo "app > pages.js". No arquivo page.js , temos a nossa home page (página inicial). Quando alguém acessa o endereço da nossa aplicação barra ("/"), irá carregar a página inicial, a nossa home.
+
+O nosso objetivo é incorporar algo semelhante a isto. Primeiro, vamos imaginar na URL como será e, em seguida, retornaremos ao VSCode para implementar.
+
+Identificando a estrutura da URL
+Voltamos ao Google Chrome no endereço localhost:3000/?page=2.
+
+Como estamos rodando toda a nossa aplicação para inglês, esperamos algo do tipo localhost:3000/posts/alguma-coisa-que-identifique-aquele-post. Poderíamos usar, por exemplo, um id, então ficaria: /posts/1, /posts/2, ou /posts/3. No entanto, isso parece com API e não com uma URL.
+
+É interessante quando se trata de posts e artigos, poder inferir pelo título o que será apresentado ao carregar aquela página.
+
+Se fosse algo do tipo, ao invés de dicas-de-acessibilidade-web, seria tipo /posts/1, seria uma surpresa total. Quando carregassem, não saberíamos do que se trata. Então, precisamos ter esse slug, essa forma de identificar o nosso post.
+
+Pensando nisso na nossa API, vamos carregá-la abrindo uma nova aba e inserindo o endereço localhost:3042.
+
+localhost:3042/posts?_page=1&_per_page=6
+COPIAR CÓDIGO
+Trecho do post indicado pelo instrutor (o post abaixo foi parcialmente transcrito):
+"data":[
+    {
+    "id": "1",
+    "cover": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/posts/introducao-ao-react.png",
+    "title": "Introdução ao React",
+    "slug": "introducao-ao-react",
+    "body": "Neste post, vamos explorar os conceitos básicos do React, uma biblioteca JavaScript para construir interfaces de usuário. Vamos cobrir componentes, JSX e estados."
+    "markdown": "```javascript\nfunction HelloComponent() {\n return <h1>Hello, world!</h1>;\n}\n```",
+    "author": {
+        "id": 101,
+        "name": "Ana Beatriz", 
+        "username": "anabeatriz_dev",
+        "avatar": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/authors/anabeatriz_dev.png" }
+    },
+COPIAR CÓDIGO
+Temos os posts, onde temos o nosso data, que é o nosso array de posts. Uma das propriedades do nosso post é justamente o slug. Então, já estamos prontos para fazer isso e implementar.
+
+Agora que compreendemos a estrutura de roteamento desejada, onde queremos /posts/slug, qual é o próximo passo? Implementar.
+
+Implementando o link
+De volta ao VSCode, como funciona esse roteamento baseado em pastas? Se criarmos algo como /posts, precisaremos criar uma nova pasta chamada posts dentro de app.
+
+E dentro dessa pasta posts, criamos o que desejamos. Neste caso, será uma página chamada page.js. Tem que ser esse nome, pois é o nome reservado do Next.
+
+Temos a seguinte estrutura:
+
+app
+posts
+page.js
+Seremos redirecionados para o arquivo page.js que está vazio.
+
+Vamos testar isso? Digitamos const PagePost que irá receber uma arrow function, que é um componente normal, react. Retornaremos, por exemplo, a um <h1> Olá posts </h1>. Na sequência colocamos export default, exportar por padrão, o nosso pagePost.
+
+page.js
+const PagePost = {} => {
+    return <h1>Olá posts</h1>
+}
+
+export default PagePost
+COPIAR CÓDIGO
+Ao utilizar essa estrutura, quando abrimos localhost:3000/posts em nosso navegador, encontramos a mensagem "Olá posts". Em outras palavras, o Next interpreta a estrutura de diretórios, o que o torna um sistema de roteamento baseado em arquivos, permitindo-lhe determinar o que deve ser renderizado.
+
+No entanto, considerando que temos diversos posts, o segmento seguinte da nossa URL pode variar, como por exemplo dicas-de-acessibilidade, css-grid-na-pratica, ou vue.js-para-iniciantes. Esse segmento não possui um valor fixo após o /posts/.
+
+Indicando um segmento dinâmico
+Precisamos, de alguma forma, capturar isso dentro da nossa aplicação. Ao invés de colocarmos o page.js diretamente dentro de posts, para termos esse segmento dinâmico, dentro da pasta posts, criaremos outra pasta e usaremos a sintaxe do Next para indicar que esse segmento é dinâmico.
+
+No nome da pasta, vamos incluir entre colchetes e chamar dentro deles o nome da variável desejada no nosso componente. Vai ser [slug], porque é o nome do atributo que queremos obter.
+
+Arrastamos o arquivo page.js para dentro dessa pasta que acabamos de criar, [slug].
+
+Temos a seguinte estrutura:
+
+src
+app
+posta
+[slug]
+page.js
+Com isso, temos um componente que será renderizado quando alguém acessar essa rota.
+
+Ao retornar à aplicação, se acessarmos /posts, ocorrerá um erro 404, o que está correto. Dentro do diretório posts, não há mais o arquivo page.js. No entanto, se tentarmos acessar dicas-de-acessibilidade-web, por exemplo, o "Olá posts" será carregado.
+
+Próximos Passos
+Agora, o que precisamos fazer é criar um link na lista de posts da nossa aplicação para torná-la navegável, conforme o funcionamento do Next, utilizando o componente Link. Dentro da página do post, teremos que capturar esse valor presente na URL.
+
+Vamos proceder assim? No próximo vídeo.
+
+https://www.alura.com.br/artigos/roteamento-eficiente-next-js-app-router
+
+https://nextjs.org/docs/app/building-your-application/routing
+
+@@03
+Obtendo o post de forma assincrona
+
+Agora que está tudo pronto e já entendemos como funciona o roteamento e o experimentamos manualmente, vamos fazer isso de forma programática, usando o link do Next para gerar essa navegação entre posts.
+Tag Link
+No VS Code, vamos abrir o componente CardPost, onde temos o arquivo index.js. Queremos englobar todo o article que representa o post e fazer dele um link.
+
+Para isso, primeiro vamos colapsar o trecho da linha 7 até 28, entre abertura e fechamento da tag article, e fazer um "Ctrl + X" (recorte) desse trecho.
+
+No lugar desse trecho, vamos chamar o nosso link do Next, abrindo uma tag e escrevendo <Link>. O VS Code sugerirá automaticamente a importação de Link, que podemos aceitar.
+
+Dentro dessa tag, vamos colar o article que acabamos de recortar, com "Ctrl + V". Depois, vamos pedir para formatar o documento (clicando na tela com o botão direito e selecionando a opção "Format Document") para indentar tudo corretamente.
+
+Em seguida, vamos colocar o href dentro dessa tag, referenciando /posts/${post.slug}. Colocamos esse caminho entre crases para fazer a concatenação de string.
+
+Teremos o seguinte:
+
+(CardPost) index.jsx
+export const CardPost = ({ post }) => {
+  return (
+    <Link href={`/posts/${post.slug}`}>
+      <article className={styles.card}>
+// código omitido
+COPIAR CÓDIGO
+Com isso, no entanto, vamos acabar colocando alguns estilos indesejados. Vamos arrumar isso.
+
+Que estilo indesejado é esse? No cardpost.module.css, temos o seletor .card, que engloba o nosso article (com um className={styles.card}), mas temos a tag Link do lado de fora. Então, vamos colocar um className nela. Ao invés de passar um .card, podemos chamar um .link.
+
+export const CardPost = ({ post }) => {
+  return (
+    <Link href={`/posts/${post.slug}`} className={styles.link}> 
+      <article className={styles.card}>
+// código omitido
+COPIAR CÓDIGO
+Agora precisamos amos implementar essa classe. No card post.module.css, vamos fazer um seletor .link e passar estilos para ele.
+
+Vamos definir o text-decoration como none, para evitar um sublinhado, que não queremos, e vamos colocar também um cursor: pointer para indicar para o navegador que esse link é clicável.
+
+card post.module.css
+.link {
+  text-decoration: none;
+  cursor: pointer;
+}
+COPIAR CÓDIGO
+Vamos testar agora para verificar se a nossa navegação vai ficar correta.
+
+No navegador, vamos acessar a página inicial do CodeConnect e tirar o zoom. O cursor: pointer funcionou: se clicarmos no artigo intitulado "Introdução ao React", é feita a navegação para /posts/introducao-ao-react!
+
+Criando a função para pegar posts pelo slug
+Vamos agora obter os dados para esse post em específico. Para isso, vamos voltar à aba do localhost:3042 no navegador. Precisaremos, de alguma forma, fazer uma busca nessa API para conseguir pegar o nosso post. Então, vamos a isso.
+
+Para entender como passamos essa consulta na API, podemos consultar a documentação do JSON Server. Conforme as orientações, para fazer isso vamos chamar o nosso slug e passá-lo como parâmetro.
+
+Para entendermos como isso vai funcionar, vamos fazer um teste no navegador. Ao invés de passar página por página em /posts, vamos chamar um slug= e pegar um slug qualquer, como o segundo: css-grid-na-pratica.
+
+O endereço ficará assim: localhost:3042/posts?slug=css-grid-na-pratica. Com isso, passamos uma query string com esse valor e o JSON Server entrega para nós as opções filtradas:
+
+Resposta localhost:3042/posts?slug=css-grid-na-pratica
+[
+  {
+    "id": "2",
+    "cover": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/posts/css-grid-na-pratica.png",
+    "title": "CSS Grid na Prática",
+    "slug": "css-grid-na-pratica",
+    "body": "Aprenda a criar layouts responsivos com CSS Grid. Este post aborda desde a definição de grid até a criação de layouts complexos de forma simples e eficaz.",
+    "markdown": "```css\n.grid-container {\n display: grid;\n grid-template-columns: auto auto auto;\n}\n```",
+    "author": {
+      "id": 101,
+      "name": "Ana Beatriz",
+      "username": "anabeatriz_dev",
+      "avatar": "https://raw.githubusercontent.com/viniciosneves/code-connect-assets/main/authors/anabeatriz_dev.png"
+    }
+  }
+]
+COPIAR CÓDIGO
+Então, essa é a URL que temos que fazer o fetch.
+
+Implementando a função
+Vamos implementar essa função. Vamos copiar o endereço digitado no navegador e, no arquivo page.js da pasta "app > posts/[slug]" no VS Code, criar a função assíncrona.
+
+Começamos com async function getPostBySlug(), recebendo o slug por parâmetro. Então poderemos começar a montar a URL do lado de fora, dentro de const url. Vamos colar o que estava na nossa área de transferência. Então, esse é o pedido:
+
+[posts/slug] page.js
+async function getPostBySlug(slug) {
+  const url = "http://localhost:3042/posts?slug=css-grid-na-pratica";
+}
+COPIAR CÓDIGO
+No entanto, o slug não pode ser fixo. Ele tem que ser o que recebemos por parâmetro. Então, trocamos aspas por crases e vamos concatenar o slug que recebemos:
+
+async function getPostBySlug(slug) {
+  const url = `http://localhost:3042/posts?slug=${slug}`;
+}
+COPIAR CÓDIGO
+Como vamos implementar? De um modo muito parecido com o que fizemos no nosso page.js, a raiz da nossa aplicação, com apenas algumas diferenças.
+
+Então, vamos copiar o getAllPosts do codigo raiz e colar dentro do getPostBuyslug. Com isso já teremos o fetch(), com a diferença que já temos a URL do lado de fora, então recebemos url como parâmetro: fetch(url).
+
+Se a resposta não estiver ok, não vamos retornar um array, mas um um objeto vazio, porque algo deu errado e o nosso post vai precisar lidar com isso. Se der tudo certo, ao invés de retornar o response.json, queremos retornar o array na posição zero - afinal, voltando no navegador, essa resposta é um array.
+
+Então, vamos criar uma constante chamada data e dizer que vamos aguardar (await) pelo response.json().
+
+Se se o tamanho do nosso array de resposta (data.length) for zero, quer dizer que esse slug não existe. Então podemos, por enquanto, retornar um objeto vazio. Do contrário, podemos retornar data na posição zero. Assim, vamos retornar sempre um post específico, a não ser que algo dê errado no processo.
+
+Nossa função ficará assim:
+
+async function getPostsBySlug(slug) {
+  const url = `http://localhost:3042/posts?slug=${slug}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    logger.error('Ops, alguma coisa correu mal');
+    return {};
+  }
+  logger.info('Posts obtidos com sucesso');
+  const data = await response.json();
+  if (data.length === 0) {
+    return {};
+  }
+  return data[0];
+}
+COPIAR CÓDIGO
+Agora, vamos chamar essa função, usando um const post dentro do nosso componente PagePost mesmo. Ele vai receber o nosso getPostBySlug().
+
+const PagePost = () => {
+  const post = getPostBySlug(????);
+  return <h1>Old posts</h1>
+}
+COPIAR CÓDIGO
+Precisamos passar o slug como parâmetro dessa função. Já poderíamos implementar isso exatamente como fizemos quando pegamos a página. Porém, como isso seria praticar algo que já aprendemos, vamos deixar a finalização dessa implementação como atividade para você.
+
+Por enquanto deixaremos assim, com um erro proposital. Será a sua missão finalizar essa implementação e exibir dentro do H1 o título do post de verdade, ok?
+
+Depois desse desafio, nos encontramos no próximo vídeo!
+
+@@04
+Mão na massa: obtendo o post
+
+Vamos agora de integração com a API, muito parecido com o que fizemos para obter a lista toda.
+A sua missão agora é: finalizar a implementação da nossa página de detalhes de um post src/app/posts/[slug]/page.js.
+
+Bora?
+
+Ah, tem um pequeno detalhe. Diferente de uma query string, para obter os valores dos parâmetros dinâmicos do Next.js a gente vai usar a prop params, assim:
+
+
+const PagePost = async ({ params }) => {
+    const slug =  params.slug
+    // restante do código
+}
+
+Então, que achou? A minha solução foi essa aqui:
+
+import logger from "@/logger"
+
+async function getPostBySlug (slug) {
+    const url  = `http://localhost:3042/posts?slug=${slug}`
+    const response = await fetch(url)
+    if (!response.ok) {
+      logger.error('Ops, alguma coisa correu mal')
+      return {}
+    }
+    logger.info('Posts obtidos com sucesso')
+    const data = await response.json()
+    if (data.length == 0) {
+        return {}
+    }
+
+    return data[0];
+} 
+
+const PagePost = async ({ params }) => {
+    const post = await getPostBySlug(params.slug)
+    return <h1 style={{ color: 'white' }}>{post.title}</h1>
+}
+
+export default PagePost
+COPIAR CÓDIGO
+Como sempre, a minha solução pra a você dar aquela espiadinha: aqui no github você consegue ver exatamente os arquivos que eu alterei.
+
+@@05
+Renderizando markdown
+
+Conseguiram resolver o desafio?! Vamos conferir a solução no VS Code.
+Dentro do PagePost, transformamos em uma função assíncrona e usamos a propriedade params, que são os parâmetros que o Next injeta para nós.
+
+[slug] page.js
+const PagePost = async ({ params }) => {
+  const post = await getPostBySlug(params.slug);
+  return <h1 style={{ color: 'white' }}>{post.title}</h1>
+}
+COPIAR CÓDIGO
+Reparem que é um pouco diferente do que temos na nossa página inicial Home, porque lá queremos pegar a página que está na query string e aqui queremos pegar o parâmetro do Next. Esse parâmetro é o [slug]. Se mudássemos esse slug para XPTO, teríamos params.XPTO.
+
+Com isso, conseguimos implementar a busca por um post específico!
+
+Vamos verificar se isso funciona na prática. No navegador, vamos abrir o CodeConnect e clicar no primeiro artigo da página, intitulado "Introdução ao React". A página do artigo se abre. O mesmo acontece para os outros artigos. Inclusive, colocamos uma letra branca para visualizar mais facilmente o título em return <h1 style={{ color: 'white' }}>{post.title}</h1>.
+
+Markdown
+Se verificarmos a resposta da nossa API no navegador, notaremos um campo "markdown" do nosso post:
+
+Resposta da API
+"markdown": "```css\n.grid-container {\n display: grid;\n grid-template-columns: auto auto auto;\n}\n```",
+COPIAR CÓDIGO
+Markdown é uma forma de escrever um texto estilizado para a web. Ela é uma sintaxe, escrita de template, que permite adicionar negrito, itálico, hierarquia de títulos e muitos outros detalhes na escrita de um texto.
+
+Especificamente no nosso post, temos um bloco de código escrito em markdown no texto. Precisamos transformar esse markdown em algo legível para as pessoas leitoras, sem as crases consecutivas, barras e assim por diante.
+
+Existem várias formas de fazer isso, mas o Next sugere em sua documentação o uso de duas bibliotecas em conjunto, a remark e remark-html. Essas duas bibliotecas juntas vão transformar o markdown em HTML para ser renderizado na nossa aplicação.
+
+Instalando as bibliotecas
+Vamos instalar essas bibliotecas na nossa aplicação, copiando o código fornecido na documentação "Render Markdown":
+
+npm install remark remark-hmtl
+COPIAR CÓDIGO
+Vamos colá-lo no terminal do VS Code e executá-lo. Pode ser que esse processo demore um pouco, a depender da velocidade da internet e do HD.
+
+E agora, como implementamos essa funcionalidade?
+
+Renderizando markdown
+Conforme a documentação, começamos importando remark e html, as duas bibliotecas. Copiamos o código fornecido e colamos no VS Code, logo abaixo da importação do logger:
+
+[slug] page.js
+import logger from "@/logger"
+import { remark } from 'remark';
+import html from 'remark-html';
+COPIAR CÓDIGO
+Depois disso, a documentação fornece a função getPostData(), que lê um arquivo .md e transforma o conteúdo desse arquivo para HTML. No nosso caso, não é exatamente isso que queremos fazer.
+
+Então, vamos copiar apenas o trecho de código referente à conversão do Markdown para HTML, que possui o processedContent (o resultado) que aguarda o remark() fazer o uso do html, processar, para então pegar a string desse resultado.
+
+Código da documentação
+const processedContent = await remark()
+  .use(html)
+  .process(matterResult.content);
+const contentHtml = processedContent.toString();
+COPIAR CÓDIGO
+Copiamos essas linhas e voltamos para o nosso contexto, no VS Code.
+
+Agora, ao invés de fazer direto o return data na posição zero dentro da função getPostBySlug(), vamos criar uma constante chamada post, armazenar esse data na posição zero (ou seja, o primeiro post com esse slug) e, na linha 20, fazemos o return do post. Assim, garantimos que não esquecemos de retornar o que precisa ser retornado.
+
+Entre armazenar o primeiro post do array na constante e retorná-lo, colamos o código que copiamos da documentação e pedimos para o VS Code formatar o documento.
+
+Podemos manter o processedContent, o nosso conteúdo processado, e também vamos continuar usando o html. Mas, o que o que vamos mandar processar em process() é o post.markdown.
+
+Voltando ao navegador, no localhost na porta 3042, verificamos que markdown é uma das propriedades que temos nos posts. Temos title, slug, body, cover e o markdown.
+
+Podemos implementar essa conversão, o processedContent.toString nós mantemos e o contentHtml vai ser o nosso resultado, o parse de markdown para HTML.
+
+Por fim, podemos dizer que post.markdown vai receber esse conteúdo processado, ou seja, o contentHtml:
+
+const post = data[0];
+
+const processedContent = await remark()
+  .use(html)
+  .process(post.markdown);
+const contentHtml = processedContent.toString();
+
+post.markdown = contentHtml
+
+return post
+COPIAR CÓDIGO
+Melhorando a exibição
+Já que o nosso post.markdown já é HTML, conseguimos melhorar a nossa exibição.
+
+Ao invés de retornar diretamente o h1, vamos colocá-lo dentro de um fragment do React, porque vamos retornar múltiplos elementos.
+
+const PagePost = async ({ params }) => {
+  const post = await getPostsBySlug(params.slug);
+  return (<>
+    <h1 style={{ color: 'white' }}>{post.title}</h1>
+  </>);
+}
+COPIAR CÓDIGO
+Na documentação do Next, na parte da renderização, verificamos que o código está chamando uma div e passando para ela uma propriedade chamada dangerouslySetInnerHTML.
+
+Basicamente, essa propriedade declara que sabemos ser perigoso pegar um HTML de origem desconhecida e renderizá-lo nossa div. Isso pode causar alguma falha de segurança. Mas nesse cenário, como confiamos na biblioteca remark e confiamos na API que retorna o markdown para nós, podemos usar esse procedimento.
+
+Existe uma técnica chamada sanitize ("higienizar"), que o remark implementa para nós, e também deixaremos conteúdo extra sobre a questão de segurança desse procedimento.
+Vamos copiar essa div e levar para a nossa página, colando embaixo do h1. No nosso caso, essa propriedade receberá post.markdown em vez de postData.contentHtml.
+
+const PagePost = async ({ params }) => {
+  const post = await getPostsBySlug(params.slug);
+  return (
+    <>
+      <h1 style={{ color: 'white' }}>{post.title}</h1>
+      <div dangerouslySetInnerHTML={{ __html: post.markdown }} />
+    </>
+  );
+}
+COPIAR CÓDIGO
+Com isso, convertemos o nosso markdown para HTML e, "perigosamente", adicionamos como conteúdo para a nossa div.
+
+Vamos verificar se isso funciona. No Chrome, vamos recarregar a página da nossa aplicação. Agora, na página dos posts, é exibido o título e o conteúdo markdown em letra preta sobre o fundo preto.
+
+Podemos colocar alguns estilos para ser mais fácil de visualizar esse conteúdo sobre o fundo preto da página. Vamos adicionar um style na div que acabamos de criar, inserindo um padding de 16 e um background branco (white):
+
+const PagePost = async ({ params }) => {
+  const post = await getPostsBySlug(params.slug);
+  return (
+    <>
+      <h1 style={{ color: 'white' }}>{post.title}</h1>
+      <div style={{ padding: 16, background: 'white' }} dangerouslySetInnerHTML={{ __html: post.markdown }} />
+    </>
+  );
+}
+COPIAR CÓDIGO
+Vamos voltar para o navegador e recarregar a página da postagem Vue.js para Iniciantes, por exemplo. O conteúdo do Markdown está lá, bem identado como precisa ser!
+
+Imagem de uma captura de tela mostrando um trecho de código básico do Vue.js sobre um fundo branco, com o título 'Vue.js para Iniciantes'. O código exibe a criação de uma nova instância do Vue, com um elemento de montagem 'app' e um objeto 'data' contendo uma propriedade 'message' com o valor 'Olá Vue!'.
+Com isso, concluímos as funcionalidades da nossa aplicação!
+
+Próximos passos
+Conforme o Figma do CodeConnect, podemos reparar que falta ainda estilizar o layout da página do post. Ainda não vamos implementar a parte de busca, mas temos que fazer com que o card do post apareça bem bonito e grande, diferente do que aparece na Home, menor.
+
+Também temos que estilizar o bloco de código, que agora está num fundo branco com a letra preta, e no Figma é um fundo cinza com a letra mais clara.
+
+Mas, isso é CSS puro. Então, a próxima e última atividade que deixamos para vocês é a implementação desse layout, para deixar essa página bem bonita!
+
+@@06
+Mão na massa: estilos da página
+
+E você chegou ao último desafio do curso. Agora, para finalizarmos a nossa página de Post:
+A imagem exibe a interface de um portal online denominado "code connect", sugerindo ser uma plataforma relacionada a programação ou desenvolvimento de software. Na parte superior da interface, há uma barra de pesquisa com o texto "Digite o que você procura" e um botão "Buscar". No lado esquerdo, existe um menu vertical com as opções "Publicar", "Feed", "Perfil", "Sobre nós", e "Sair", indicando as funcionalidades do site ou aplicativo. No centro, destaca-se um modelo de post com uma visualização de interface de usuário contendo elementos gráficos e botões. Abaixo da imagem, há um título "Título do post" e um texto de exemplo em latim. Mais abaixo, apresenta-se um segmento de código em JavaScript, possivelmente relacionado ao conteúdo do post ou funcionamento da plataforma. A paleta de cores é escura, predominando tons de preto e verde, o que é característico de temas de programação e desenvolvimento.)
+
+Você pode reaproveitar o CardPost, se refatorar ele. Ou mesmo criar tudo do zero. Existem várias formas diferentes para chegar nesse resultado e muito mais do que uma resposta certa.
+
+Se quiser postar a sua versão no Discord, no fórum ou mesmo nas redes sociais que vai ser muito bacana ver o seu resultado.
+
+Tudo no esquema? Links com a cor certa e no lugar certo?
+Como sempre, a minha solução pra a você dar aquela espiadinha: aqui no github você consegue ver exatamente os arquivos que eu alterei.
+
+O ponto que eu queria ressaltar é a forma que eu fiz para lidar com tamanhos diferentes da imagem.
+
+Olhando na documentação, podemos trabalhar com a prop fill.
+
+Essa prop, fill, é um booleano que faz a imagem preencher o elemento pai, que é muito útil quando não sabemos qual é a largura e a altura da imagem.
+
+O elemento pai deve ter uma dessas três posições:
+
+position: "relative"
+position: "fixed"
+position: "absolute".
+Por padrão, o elemento img var ter position: "absolute".
+
+Se nenhum estilo for aplicado à imagem, ela se esticará para se ajustar ao container.A gente também pode definir object-fit: "contain" pra não perder a proporção, dependendo do cenário. Ou então podemos aplicar object-fit: "cover" para fazer com que a imagem preencha todo o container e seja cortada para manter a proporção. Pra fazer desse jeito, Temos de aplicar também o estilo overflow: "hidden" deve ser atribuído ao elemento pai.
+
+Para mais informações, veja também:
+
+position
+object-fit
+object-position
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/commit/06a15a9549bca0586938a21efc16840dfe565076
+
+https://nextjs.org/docs/pages/api-reference/components/image#fill
+
+https://developer.mozilla.org/docs/Web/CSS/position
+
+https://developer.mozilla.org/docs/Web/CSS/object-fit
+
+https://developer.mozilla.org/en-US/docs/Web/CSS/object-position
+
+@@07
+Next e SSR
+
+Como podemos descrever o SSR e suas características em uma aplicação Next.js?
+
+
+O SSR faz com que o conteúdo seja interativo no lado do cliente, melhorando a experiência do usuário e aumentando o tempo de interação com o site.
+ 
+O SSR não está diretamente relacionado à interatividade no lado do cliente, que é mais uma característica do Client-Side Rendering (CSR).
+Alternativa correta
+O SSR dificulta o carregamento do conteúdo dinâmico, prejudicando a personalização do conteúdo para o usuário.
+ 
+O SSR não dificulta o carregamento de conteúdo dinâmico; ele pode ser combinado com técnicas de renderização híbridas para personalizar conteúdo.
+Alternativa correta
+O SSR permite que o conteúdo seja renderizado no lado do servidor, melhorando a indexação pelos motores de busca e reduzindo o tempo de carregamento para o usuário final.
+ 
+O SSR efetivamente melhora a performance ao reduzir o trabalho de renderização no lado do cliente e otimiza o SEO ao permitir que os motores de busca indexem o conteúdo já processado.
+Alternativa correta
+O SSR minimiza a necessidade de uso de APIs externas, facilitando a manutenção e a segurança do blog.
+ 
+Alternativa correta
+O SSR ajusta automaticamente o tema visual do blog de acordo com as preferências do usuário, aumentando a acessibilidade.
+
+@@08
+Projeto final
+
+Caso queira revisar o código do projeto final do curso, você pode baixá-lo neste link ou acessar nosso repositório do Github.
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/tree/aula-5
+
+https://github.com/alura-cursos/3499-next-14-ssr-codeconnect/archive/refs/heads/aula-5.zip
+
+@@09
+Parabéns!
+
+Chegou o momento de celebrar sua grande conquista!
+Troféu
+
+Durante essa incrível jornada pelo mundo do desenvolvimento front-end, você mergulhou profundamente no Next.js, esse framework incrível e super utilizado no mercado.
+
+Parabéns pelo seu comprometimento e esforço contínuo que transformaram conceitos intangíveis em aplicações práticas, facilitando nossas vidas diárias e tornando nosso fluxo de trabalho mais produtivo e eficiente.
+
+Foram muitos desafios e atividades práticas durante a jornada e to muito orgulhoso por você ter finalizado todas elas e chegado até aqui.
+
+Agora é a sua hora de brilhar. Mostre ao mundo essas habilidades que você adquiriu! E quando exibir seu trabalho incrível nas redes sociais, coloca lá a hashtag #aprendinaalura. Estou sempre atento e não vou perder a oportunidade de celebrar e reconhecer seu trabalho, então não deixe de me marcar nos seus posts!
+
+Segue firme nessa vibe e que a força (do Front-end) esteja sempre contigo!
+
+Agora, dê uma nota para o curso, pegue seu certificado e comemore bastante essa conquista.
+Meus parabéns! Estou muito feliz por você ter chegado até aqui.
+
+Um grande abraço do seu dev careca e barbudo favorito,
+
+Vinicios Neves o/
+
+@@10
+O que aprendemos?
+
+Nessa aula, você aprendeu como:
+Configurar páginas com parâmetros dinâmicos usando Next.js;
+Implementar a conversão de markdown para HTML;
+Configurar as libs remark e remark-html.
+
+@@11
+Conclusão
+
+Parabéns por chegar até aqui, no final de mais um curso de Next na Alura!
+O que aprendemos?
+Compreendemos as principais diferenças entre desenvolver funcionalidades do lado do cliente e do lado do servidor, entendendo que as versões mais recentes do Next focam no lado do servidor. Portanto, tarefas que realizávamos com o useEffect e o useState, do lado do cliente e de nossos componentes, agora o Next é que está executando.
+
+Montamos a página inicial da CodeConnect, que lista vários posts, integrando com uma API de forma paginada.
+
+Utilizamos vários conceitos relevantes nesse desenvolvimento, como a integração com a QueryString para obter a página que queremos carregar. Aplicamos também o valor padrão para que, se não houver página nenhuma, pegamos a página 1.
+
+Também implementamos a navegação: conseguimos sair da página inicial, que lista todos os posts, e entrar na página de um post específico.
+
+Com os últimos desafios que completamos, conseguiremos visualizar exatamente o que está no Figma na nossa aplicação - tanto a parte do código, quanto a parte da imagem que fica no topo.
+
+Portanto, além de aprender um novo framework, evoluímos em técnicas, inclusive, de refatoração na solução do nosso desafio.
+
+Próximos passos
+Agora que você entendeu como as coisas funcionam do lado do servidor, você pode pegar esse projeto, modificá-lo, personalizá-lo, criar os seus posts, postar nas redes sociais, no Discord da Alura, e nos marcar.
+
+Será incrível compartilhar esse momento de vitória com você!
